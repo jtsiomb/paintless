@@ -1,6 +1,20 @@
-; vi:set filetype=nasm:
-; foo_ are watcom functions, _foo are djgpp functions
+; Simple paint program for DOS
+; Copyright (C) 2021 John Tsiombikas <nuclear@member.fsf.org>
+; 
+; This program is free software: you can redistribute it and/or modify
+; it under the terms of the GNU General Public License as published by
+; the Free Software Foundation, either version 3 of the License, or
+; (at your option) any later version.
+; 
+; This program is distributed in the hope that it will be useful,
+; but WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+; GNU General Public License for more details.
+; 
+; You should have received a copy of the GNU General Public License
+; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+; foo_ are watcom functions, _foo are djgpp functions
 QUERY equ 0
 SHOW equ 1
 HIDE equ 2
@@ -209,3 +223,5 @@ _set_mouse_rate:
 	pop ebx
 	pop ebp
 	ret
+
+; vi:set filetype=nasm:
