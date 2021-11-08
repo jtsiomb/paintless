@@ -1,4 +1,4 @@
-obj = lines.obj mouse.obj
+obj = lines.obj gfx.obj ui.obj mouse.obj
 bin = lines.exe
 
 CC = wcc386
