@@ -16,7 +16,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdarg.h>
+#include <conio.h>
+#include <direct.h>
+#include "video.h"
 #include "ui.h"
 #include "gfx.h"
 
@@ -151,4 +156,156 @@ void gprintf(unsigned char *fb, const char *fmt, ...)
 	va_end(ap);
 
 	draw_text(fb, cur_x, cur_y, buf, fgcol, bgcol);
+}
+
+struct dir_entry {
+	char name[16];
+	int dir;
+};
+
+static struct dir_entry *load_dir(const char *dirname, int *numret)
+{
+	int i, num = 0;
+	DIR *dir;
+	struct dirent *dent;
+	struct dir_entry *entries;
+
+	if(!(dir = opendir(dirname ? dirname : "."))) {
+		return 0;
+	}
+	while((dent = readdir(dir))) {
+		if(strcmp(dent->d_name, ".") == 0) continue;
+		num++;
+	}
+	rewinddir(dir);
+
+	if(!(entries = malloc(num * sizeof *entries))) {
+		return 0;
+	}
+	num = 0;
+
+	while((dent = readdir(dir))) {
+		if(strcmp(dent->d_name, ".") == 0) continue;
+		strcpy(entries[num].name, dent->d_name);
+		entries[num].dir = dent->d_attr == _A_SUBDIR;
+		num++;
+	}
+	closedir(dir);
+
+	*numret = num;
+	return entries;
+}
+
+static unsigned char tcurcol = 7;
+static int tx, ty;
+
+static void tcolor(unsigned char fg, unsigned char bg)
+{
+	tcurcol = (bg << 4) | (fg & 0xf);
+}
+
+static void tmoveto(int x, int y)
+{
+	tx = x;
+	ty = y;
+}
+
+static void tputchar(int c)
+{
+	unsigned char *dest = (unsigned char*)0xb8000 + ty * 160 + (tx << 1);
+	*dest++ = c;
+	*dest++ = tcurcol;
+	if(++tx >= 80) {
+		tx = 0;
+		if(++ty >= 25) ty = 0;
+	}
+}
+
+static void tprintf(const char *fmt, ...)
+{
+	char buf[256];
+	char *s = buf;
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsprintf(buf, fmt, ap);
+	va_end(ap);
+
+	while(*s) tputchar(*s++);
+}
+
+int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf, int bufsz)
+{
+	int i, c, num_entries;
+	struct dir_entry *entries;
+	int extkey = 0, cursel = 0;
+
+	set_video_mode(3);
+
+	if(!(entries = load_dir(dirname, &num_entries))) {
+		return -1;
+	}
+
+	for(;;) {
+		memset(0xb8000, 0, 80 * 25 * 2);
+		tmoveto(0, 0);
+		tcolor(4, 0);
+		tprintf("File selection dialog");
+
+		for(i=0; i<num_entries; i++) {
+			if(i > 24) break;
+			tmoveto(2, i + 1);
+			if(cursel == i) {
+				tcolor(0, 3);
+			} else {
+				tcolor(7, 0);
+			}
+			if(entries[i].dir) {
+				if(cursel != i) {
+					tcolor(0xf, 0);
+				}
+				tprintf("[%s]", entries[i].name);
+			} else {
+				tprintf(" %s", entries[i].name);
+			}
+		}
+
+		c = getch();
+		if(!extkey) {
+			switch(c) {
+			case 27:
+				goto end;
+
+			case '\n':
+				break;
+
+			case 0:
+				extkey = 1;
+				break;
+			}
+		} else {
+			extkey = 0;
+			switch(c) {
+			case 'H':	/* up arrow */
+				if(cursel > 0) cursel--;
+				break;
+			case 'K':	/* left arrow */
+				cursel = 0;
+				break;
+			case 'P':	/* down arrow */
+				if(cursel < num_entries - 1) {
+					cursel++;
+				}
+				break;
+			case 'M':	/* right arrow */
+				cursel = num_entries - 1;
+				break;
+			}
+		}
+	}
+
+end:
+	free(entries);
+	set_video_mode(0x13);
+	return -1;
 }

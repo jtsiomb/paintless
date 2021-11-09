@@ -21,6 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define TBAR_HEIGHT	12
 
 enum {FRM_IN, FRM_OUT};
+enum {FDLG_OPEN, FDLG_SAVE};
 
 void draw_frame(unsigned char *fb, int x0, int y0, int x1, int y1, int style);
 void draw_toolbar(void);
@@ -34,5 +35,7 @@ void draw_text(unsigned char *fb, int x, int y, const char *str, unsigned char c
 void gcolor(unsigned char fg, unsigned char bg);
 void gmoveto(int x, int y);
 void gprintf(unsigned char *fb, const char *fmt, ...);
+
+int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf, int bufsz);
 
 #endif	/* UI_H_ */

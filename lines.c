@@ -16,9 +16,12 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <conio.h>
 #include <dos.h>
+#include "video.h"
 #include "mouse.h"
 #include "gfx.h"
 #include "ui.h"
@@ -32,8 +35,6 @@ enum {
 };
 #define MAX_TOOL_RAD	32
 
-void set_video_mode(int mode);
-void wait_vblank(void);
 int load_image(const char *fname);
 int save_image(const char *fname);
 
@@ -51,6 +52,7 @@ int fill;
 int main(void)
 {
 	int c, mbn, mbn_prev = 0, mbn_delta;
+	char path[256];
 
 	set_video_mode(0x13);
 	if(!have_mouse()) {
@@ -102,7 +104,11 @@ int main(void)
 
 			case 'l':
 			case 'L':
-				load_image("lines.ppm");
+				if(file_dialog(FDLG_OPEN, 0, "*.ppm", path, sizeof path) == -1) {
+					load_image("lines.ppm");
+				} else {
+					load_image(path);
+				}
 				break;
 			}
 		}
@@ -174,26 +180,6 @@ end:
 	set_video_mode(3);
 	return 0;
 }
-
-void set_video_mode(int mode)
-{
-	union REGS regs = {0};
-	regs.x.eax = mode & 0xff;
-	int386(0x10, &regs, &regs);
-}
-
-void wait_vblank(void);
-#pragma aux wait_vblank = \
-	"mov dx, 0x3da" \
-	"l1:" \
-	"in al, dx" \
-	"and al, 0x8" \
-	"jnz l1" \
-	"l2:" \
-	"in al, dx" \
-	"and al, 0x8" \
-	"jz l2" \
-	modify[al dx];
 
 static unsigned char colors[][3] = {
 	{0, 0, 0},				/*  0: black */
