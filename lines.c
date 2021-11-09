@@ -1,20 +1,3 @@
-/*
-Simple paint program for DOS
-Copyright (C) 2021 John Tsiombikas <nuclear@member.fsf.org>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
 #include <stdio.h>
 #include <string.h>
 #include <conio.h>
@@ -37,6 +20,7 @@ void wait_vblank(void);
 int load_image(const char *fname);
 int save_image(const char *fname);
 
+int mx, my;
 int startx = -1, starty;
 unsigned char img[64000];
 unsigned char *vmem = (unsigned char*)0xa0000;
@@ -44,12 +28,12 @@ unsigned char backbuf[64000 + 320 * 16];
 unsigned char *framebuf = backbuf + 320 * 8;
 unsigned char cur_col = 0xf;
 int tool, tool_sz = 1;
-int show_ui = 1;
+int show_ui = 2;
 int fill;
 
 int main(void)
 {
-	int c, mx, my, mbn, mbn_prev = 0, mbn_delta;
+	int c, mbn, mbn_prev = 0, mbn_delta;
 
 	set_video_mode(0x13);
 	if(!have_mouse()) {
@@ -91,7 +75,7 @@ int main(void)
 				break;
 
 			case '\t':
-				show_ui = !show_ui;
+				show_ui = (show_ui + 1) % 3;
 				break;
 
 			case 's':
@@ -153,12 +137,6 @@ int main(void)
 		}
 
 		if(show_ui) {
-			if(show_ui == 1 && my == 0) {
-				show_ui++;
-			}
-			if(show_ui == 2 && my >= TBAR_HEIGHT) {
-				show_ui--;
-			}
 			if(show_ui >= 2) {
 				draw_toolbar();
 			}

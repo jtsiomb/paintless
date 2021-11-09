@@ -1,20 +1,5 @@
-/*
-Simple paint program for DOS
-Copyright (C) 2021 John Tsiombikas <nuclear@member.fsf.org>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
+#include <stdio.h>
+#include <stdarg.h>
 #include "ui.h"
 #include "gfx.h"
 
@@ -24,6 +9,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #define UICOL_LIT	15
 #define UICOL_SHAD	8
 
+extern int mx, my;
 extern unsigned char *framebuf;
 
 void draw_frame(unsigned char *fb, int x0, int y0, int x1, int y1, int style)
@@ -55,6 +41,9 @@ void draw_frame(unsigned char *fb, int x0, int y0, int x1, int y1, int style)
 void draw_toolbar(void)
 {
 	draw_frame(framebuf, 0, 0, 319, TBAR_HEIGHT-1, FRM_OUT);
+	gmoveto(319 - TBAR_COLSZ - 64, 2);
+	gcolor(0, UICOL_MAIN);
+	gprintf(framebuf, "%3d,%d", mx, my);
 }
 
 void draw_colorbox(unsigned char col)
@@ -89,4 +78,60 @@ void draw_cursor(int x, int y, unsigned char col)
 
 	p[320] ^= col; p[640] ^= col; p[960] ^= col; p[1280] ^= col;
 	p[-320] ^= col; p[-640] ^= col; p[-960] ^= col; p[-1280] ^= col;
+}
+
+static int cur_x, cur_y;
+static unsigned char fgcol = 0xf, bgcol = 0;
+extern unsigned char font_8x8[];
+
+void draw_glyph(unsigned char *fb, int x, int y, char c, unsigned char col, unsigned char bgcol)
+{
+	int i, j;
+	unsigned char *gptr, g;
+
+	if(c < 32 || c > 127) return;
+
+	fb += (y << 8) + (y << 6) + x;
+	gptr = font_8x8 + ((c - 32) << 3);
+	for(i=0; i<8; i++) {
+		g = *gptr++;
+		for(j=0; j<8; j++) {
+			fb[j] = g & 0x80 ? col : bgcol;
+			g <<= 1;
+		}
+		fb += 320;
+	}
+}
+
+void draw_text(unsigned char *fb, int x, int y, const char *str, unsigned char col, unsigned char bgcol)
+{
+	while(*str) {
+		draw_glyph(fb, x, y, *str++, col, bgcol);
+		x += 8;
+		if(x >= 320 - 8) return;
+	}
+}
+
+void gcolor(unsigned char fg, unsigned char bg)
+{
+	fgcol = fg;
+	bgcol = bg;
+}
+
+void gmoveto(int x, int y)
+{
+	cur_x = x;
+	cur_y = y;
+}
+
+void gprintf(unsigned char *fb, const char *fmt, ...)
+{
+	char buf[256];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsprintf(buf, fmt, ap);
+	va_end(ap);
+
+	draw_text(fb, cur_x, cur_y, buf, fgcol, bgcol);
 }
