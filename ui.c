@@ -18,12 +18,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <conio.h>
 #include <direct.h>
+#include "app.h"
 #include "video.h"
 #include "ui.h"
 #include "gfx.h"
+
+enum {
+	ICON_DIR = 1,
+	ICON_NEW,
+	ICON_OPEN,
+	ICON_SAVE,
+	ICON_BRUSH,
+	ICON_LINE,
+	ICON_RECT,
+	ICON_FILLRECT,
+	ICON_FLOOD,
+	ICON_PICK
+};
 
 #define TBAR_COLSZ	(TBAR_HEIGHT - 2)
 
@@ -62,7 +77,21 @@ void draw_frame(unsigned char *fb, int x0, int y0, int x1, int y1, int style)
 
 void draw_toolbar(void)
 {
+	int i, x = 2;
 	draw_frame(framebuf, 0, 0, 319, TBAR_HEIGHT-1, FRM_OUT);
+
+	for(i=0; i<3; i++) {
+		draw_frame(framebuf, x, 1, x + 11, 10, FRM_OUT);
+		draw_glyph(framebuf, x + 2, 2, ICON_NEW + i, 0, UICOL_MAIN);
+		x += 13;
+	}
+	x += 5;
+	for(i=0; i<NUM_TOOLS; i++) {
+		draw_frame(framebuf, x, 1, x + 11, 10, tool == i ? FRM_IN : FRM_OUT);
+		draw_glyph(framebuf, x + 2, 2, ICON_BRUSH + i, 0, UICOL_MAIN);
+		x += 13;
+	}
+
 	gmoveto(319 - TBAR_COLSZ - 64, 2);
 	gcolor(0, UICOL_MAIN);
 	gprintf(framebuf, "%3d,%d", mx, my);
@@ -111,10 +140,10 @@ void draw_glyph(unsigned char *fb, int x, int y, char c, unsigned char col, unsi
 	int i, j;
 	unsigned char *gptr, g;
 
-	if(c < 32 || c > 127) return;
+	if(c < 1 || c > 127) return;
 
 	fb += (y << 8) + (y << 6) + x;
-	gptr = font_8x8 + ((c - 32) << 3);
+	gptr = font_8x8 + (c << 3);
 	for(i=0; i<8; i++) {
 		g = *gptr++;
 		for(j=0; j<8; j++) {
@@ -158,12 +187,37 @@ void gprintf(unsigned char *fb, const char *fmt, ...)
 	draw_text(fb, cur_x, cur_y, buf, fgcol, bgcol);
 }
 
+static int substr_len(const char *str)
+{
+	const char *s = str;
+	while(*s && *s != '*' && *s != '?') s++;
+	return s - str;
+}
+
+static int match_suffix(const char *name, const char *suffix)
+{
+	int len, slen;
+
+	if(!suffix || !*suffix) return 1;
+	while(*suffix == '*') suffix++;
+
+	len = strlen(name);
+	slen = strlen(suffix);
+	if(slen > len) return 0;
+
+	name += len - slen;
+	while(*name) {
+		if(tolower(*name++) != tolower(*suffix++)) return 0;
+	}
+	return 1;
+}
+
 struct dir_entry {
 	char name[16];
 	int dir;
 };
 
-static struct dir_entry *load_dir(const char *dirname, int *numret)
+static struct dir_entry *load_dir(const char *dirname, const char *filter, int *numret)
 {
 	int i, num = 0;
 	DIR *dir;
@@ -186,9 +240,11 @@ static struct dir_entry *load_dir(const char *dirname, int *numret)
 
 	while((dent = readdir(dir))) {
 		if(strcmp(dent->d_name, ".") == 0) continue;
-		strcpy(entries[num].name, dent->d_name);
-		entries[num].dir = dent->d_attr == _A_SUBDIR;
-		num++;
+		if(dent->d_attr == _A_SUBDIR || match_suffix(dent->d_name, filter)) {
+			strcpy(entries[num].name, dent->d_name);
+			entries[num].dir = dent->d_attr == _A_SUBDIR;
+			num++;
+		}
 	}
 	closedir(dir);
 
@@ -196,79 +252,64 @@ static struct dir_entry *load_dir(const char *dirname, int *numret)
 	return entries;
 }
 
-static unsigned char tcurcol = 7;
-static int tx, ty;
-
-static void tcolor(unsigned char fg, unsigned char bg)
-{
-	tcurcol = (bg << 4) | (fg & 0xf);
-}
-
-static void tmoveto(int x, int y)
-{
-	tx = x;
-	ty = y;
-}
-
-static void tputchar(int c)
-{
-	unsigned char *dest = (unsigned char*)0xb8000 + ty * 160 + (tx << 1);
-	*dest++ = c;
-	*dest++ = tcurcol;
-	if(++tx >= 80) {
-		tx = 0;
-		if(++ty >= 25) ty = 0;
-	}
-}
-
-static void tprintf(const char *fmt, ...)
-{
-	char buf[256];
-	char *s = buf;
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsprintf(buf, fmt, ap);
-	va_end(ap);
-
-	while(*s) tputchar(*s++);
-}
+#define FONT_SZ		8
+#define ICON_SZ		8
+#define FRM_X		4
+#define FRM_Y		12
+#define FRM_IN_X	(FRM_X + 2)
+#define FRM_IN_Y	(FRM_Y + 2)
+#define NUMLINES	22
+#define FRM_IN_XSZ	(ICON_SZ + 12 * FONT_SZ)
+#define FRM_IN_YSZ	(NUMLINES * FONT_SZ)
+#define FRM_XSZ		(FRM_IN_XSZ + 4)
+#define FRM_YSZ		(FRM_IN_YSZ + 4)
+#define FRM2_X		(FRM_X * 2 + FRM_XSZ)
+#define FRM2_IN_X	(FRM2_X + 2)
 
 int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf, int bufsz)
 {
-	int i, c, num_entries;
+	static const int coloffs[] = {FRM_IN_X, FRM2_IN_X};
+	int i, c, num_entries, column, ypos;
 	struct dir_entry *entries;
 	int extkey = 0, cursel = 0;
 
-	set_video_mode(3);
 
-	if(!(entries = load_dir(dirname, &num_entries))) {
+	if(!(entries = load_dir(dirname, filter, &num_entries))) {
 		return -1;
 	}
 
 	for(;;) {
-		memset(0xb8000, 0, 80 * 25 * 2);
-		tmoveto(0, 0);
-		tcolor(4, 0);
-		tprintf("File selection dialog");
+		memset(framebuf, UICOL_MAIN, 64000);
+		gmoveto(0, 0);
+		gcolor(4, UICOL_MAIN);
 
+		draw_frame(framebuf, FRM_X, FRM_Y, FRM_X + FRM_XSZ, FRM_Y + FRM_YSZ, FRM_IN);
+		draw_frame(framebuf, FRM2_X, FRM_Y, FRM2_X + FRM_XSZ, FRM_Y + FRM_YSZ, FRM_IN);
+		gprintf(framebuf, "File selection dialog");
+
+		column = -1;
 		for(i=0; i<num_entries; i++) {
-			if(i > 24) break;
-			tmoveto(2, i + 1);
+			if(i % NUMLINES == 0) {
+				column++;
+				ypos = FRM_IN_Y;
+				if(column > 1) break;
+			}
+			gmoveto(coloffs[column], ypos);
+			ypos += FONT_SZ;
 			if(cursel == i) {
-				tcolor(0, 3);
+				gcolor(0, 3);
 			} else {
-				tcolor(7, 0);
+				gcolor(0, UICOL_MAIN);
 			}
 			if(entries[i].dir) {
-				if(cursel != i) {
-					tcolor(0xf, 0);
-				}
-				tprintf("[%s]", entries[i].name);
+				gprintf(framebuf, "%c%-12s", ICON_DIR, entries[i].name);
 			} else {
-				tprintf(" %s", entries[i].name);
+				gprintf(framebuf, " %-12s", entries[i].name);
 			}
 		}
+
+		wait_vblank();
+		memcpy((void*)0xa0000, framebuf, 64000);
 
 		c = getch();
 		if(!extkey) {
@@ -277,6 +318,20 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 				goto end;
 
 			case '\n':
+			case '\r':
+				if(entries[cursel].dir) {
+					if(chdir(entries[cursel].name) == 0) {
+						free(entries);
+						if(!(entries = load_dir(".", filter, &num_entries))) {
+							return -1;
+						}
+						cursel = 0;
+					}
+				} else {
+					strcpy(pathbuf, entries[cursel].name);
+					free(entries);
+					return 0;
+				}
 				break;
 
 			case 0:
@@ -290,7 +345,8 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 				if(cursel > 0) cursel--;
 				break;
 			case 'K':	/* left arrow */
-				cursel = 0;
+				cursel -= NUMLINES;
+				if(cursel < 0) cursel = 0;
 				break;
 			case 'P':	/* down arrow */
 				if(cursel < num_entries - 1) {
@@ -298,7 +354,10 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 				}
 				break;
 			case 'M':	/* right arrow */
-				cursel = num_entries - 1;
+				cursel += NUMLINES;
+				if(cursel >= num_entries) {
+					cursel = num_entries - 1;
+				}
 				break;
 			}
 		}
@@ -306,6 +365,5 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 
 end:
 	free(entries);
-	set_video_mode(0x13);
 	return -1;
 }

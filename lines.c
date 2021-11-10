@@ -21,18 +21,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <ctype.h>
 #include <conio.h>
 #include <dos.h>
+#include <direct.h>
+#include "app.h"
 #include "video.h"
 #include "mouse.h"
 #include "gfx.h"
 #include "ui.h"
 
-enum {
-	TOOL_BRUSH,
-	TOOL_LINE,
-	TOOL_RECT,
-	TOOL_FLOOD,
-	NUM_TOOLS
-};
 #define MAX_TOOL_RAD	32
 
 int load_image(const char *fname);
@@ -48,11 +43,14 @@ unsigned char cur_col = 0xf;
 int tool, tool_sz = 1;
 int show_ui = 2;
 int fill;
+char cwd[256];
 
 int main(void)
 {
 	int c, mbn, mbn_prev = 0, mbn_delta;
 	char path[256];
+
+	getcwd(cwd, sizeof cwd);
 
 	set_video_mode(0x13);
 	if(!have_mouse()) {
@@ -74,6 +72,9 @@ int main(void)
 			case '2':
 			case '3':
 			case '4':
+			case '5':
+			case '6':
+			case '7':
 				tool = c - '1';
 				break;
 
@@ -82,11 +83,6 @@ int main(void)
 				break;
 			case '[':
 				if(tool_sz > 1) tool_sz--;
-				break;
-
-			case 'f':
-			case 'F':
-				fill ^= OP_FILL;
 				break;
 
 			case '\b':
@@ -104,9 +100,7 @@ int main(void)
 
 			case 'l':
 			case 'L':
-				if(file_dialog(FDLG_OPEN, 0, "*.ppm", path, sizeof path) == -1) {
-					load_image("lines.ppm");
-				} else {
+				if(file_dialog(FDLG_OPEN, 0, "*.ppm", path, sizeof path) != -1) {
 					load_image(path);
 				}
 				break;
@@ -133,11 +127,19 @@ int main(void)
 				draw_line(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
 				break;
 			case TOOL_RECT:
-				draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR | fill);
+				draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
+				break;
+			case TOOL_FILLRECT:
+				draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR | OP_FILL);
 				break;
 			case TOOL_FLOOD:
 				if(mbn_delta & MOUSE_LEFT) {
 					floodfill(img, mx, my, cur_col);
+				}
+				break;
+			case TOOL_PICK:
+				if(mbn_delta & MOUSE_LEFT) {
+					cur_col = img[(my << 8) + (my << 6) + mx];
 				}
 				break;
 			}
@@ -148,7 +150,10 @@ int main(void)
 					draw_line(img, startx, starty, mx, my, cur_col, OP_WR);
 					break;
 				case TOOL_RECT:
-					draw_rect(img, startx, starty, mx, my, cur_col, OP_WR | fill);
+					draw_rect(img, startx, starty, mx, my, cur_col, OP_WR);
+					break;
+				case TOOL_FILLRECT:
+					draw_rect(img, startx, starty, mx, my, cur_col, OP_WR | OP_FILL);
 					break;
 				}
 				startx = starty = -1;
@@ -178,6 +183,7 @@ int main(void)
 end:
 
 	set_video_mode(3);
+	chdir(cwd);
 	return 0;
 }
 
