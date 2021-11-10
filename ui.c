@@ -28,8 +28,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "gfx.h"
 #include "mouse.h"
 
+#define FONT_SZ		8
+#define ICON_SZ		8
+
 enum {
-	ICON_DIR = 1,
+	ICON_SEP,
+	ICON_DIR,
 	ICON_NEW,
 	ICON_OPEN,
 	ICON_SAVE,
@@ -48,7 +52,26 @@ enum {
 #define UICOL_SHAD	8
 
 extern int mx, my;
-extern unsigned char *framebuf;
+
+#define TBNPOS(x)	(2 + (ICON_SZ + 4) * (x))
+static struct toolbar_button {
+	int icon;
+	int tool;
+	int xpos;
+} tb_buttons[] = {
+	{ICON_NEW, -1, TBNPOS(0)},
+	{ICON_OPEN, -1, TBNPOS(1)},
+	{ICON_SAVE, -1, TBNPOS(2)},
+	{ICON_SEP, -1, TBNPOS(3)},
+	{ICON_BRUSH, TOOL_BRUSH, TBNPOS(4)},
+	{ICON_LINE, TOOL_LINE, TBNPOS(5)},
+	{ICON_RECT, TOOL_RECT, TBNPOS(6)},
+	{ICON_FILLRECT, TOOL_FILLRECT, TBNPOS(7)},
+	{ICON_FLOOD, TOOL_FLOOD, TBNPOS(8)},
+	{ICON_PICK, TOOL_PICK, TBNPOS(9)},
+};
+#define NUM_TB_BUTTONS	(sizeof tb_buttons / sizeof *tb_buttons)
+
 
 void draw_frame(unsigned char *fb, int x0, int y0, int x1, int y1, int style)
 {
@@ -78,19 +101,17 @@ void draw_frame(unsigned char *fb, int x0, int y0, int x1, int y1, int style)
 
 void draw_toolbar(void)
 {
-	int i, x = 2;
+	int i, x, style;
 	draw_frame(framebuf, 0, 0, 319, TBAR_HEIGHT-1, FRM_OUT);
 
-	for(i=0; i<3; i++) {
-		draw_frame(framebuf, x, 1, x + 11, 10, FRM_OUT);
-		draw_glyph(framebuf, x + 2, 2, ICON_NEW + i, 0, UICOL_MAIN);
-		x += 13;
-	}
-	x += 5;
-	for(i=0; i<NUM_TOOLS; i++) {
-		draw_frame(framebuf, x, 1, x + 11, 10, tool == i ? FRM_IN : FRM_OUT);
-		draw_glyph(framebuf, x + 2, 2, ICON_BRUSH + i, 0, UICOL_MAIN);
-		x += 13;
+	for(i=0; i<NUM_TB_BUTTONS; i++) {
+		if(tb_buttons[i].icon == ICON_SEP) {
+			continue;
+		}
+		x = tb_buttons[i].xpos;
+		style = tb_buttons[i].tool == tool ? FRM_IN : FRM_OUT;
+		draw_frame(framebuf, x, 1, x + 11, 10, style);
+		draw_glyph(framebuf, x + 2, 2, tb_buttons[i].icon, 0, UICOL_MAIN);
 	}
 
 	gmoveto(319 - TBAR_COLSZ - 64, 2);
@@ -116,7 +137,6 @@ void draw_cursor(int x, int y, unsigned char col)
 	case 5: p[-5] ^= col;
 	case 4: p[-4] ^= col;
 	case 3: p[-3] ^= col;
-	case 2: p[-2] ^= col;
 	case 0: break;
 	}
 	switch(x) {
@@ -124,12 +144,11 @@ void draw_cursor(int x, int y, unsigned char col)
 	case 314: p[5] ^= col;
 	case 315: p[4] ^= col;
 	case 316: p[3] ^= col;
-	case 317: p[2] ^= col;
 	case 319: break;
 	}
 
-	p[1600] ^= col; p[640] ^= col; p[960] ^= col; p[1280] ^= col;
-	p[-1600] ^= col; p[-640] ^= col; p[-960] ^= col; p[-1280] ^= col;
+	p[1600] ^= col; p[960] ^= col; p[1280] ^= col;
+	p[-1600] ^= col; p[-960] ^= col; p[-1280] ^= col;
 }
 
 static int cur_x, cur_y;
@@ -186,6 +205,46 @@ void gprintf(unsigned char *fb, const char *fmt, ...)
 	va_end(ap);
 
 	draw_text(fb, cur_x, cur_y, buf, fgcol, bgcol);
+}
+
+void uibutton(int st, int x, int y)
+{
+	int i;
+	char path[32];
+
+	if(!st || y >= TBAR_HEIGHT) return;
+
+	for(i=0; i<NUM_TB_BUTTONS; i++) {
+		if(x >= tb_buttons[i].xpos && x < tb_buttons[i].xpos + ICON_SZ + 2) {
+			break;
+		}
+	}
+
+	if(i < NUM_TB_BUTTONS) {
+		switch(tb_buttons[i].icon) {
+		case ICON_NEW:
+			memset(img, 0, 64000);
+			break;
+		case ICON_OPEN:
+			if(file_dialog(FDLG_OPEN, 0, "*.ppm", path, sizeof path) != -1) {
+				load_image(path);
+			}
+			break;
+		case ICON_SAVE:
+			if(file_dialog(FDLG_SAVE, 0, "*.ppm", path, sizeof path) != -1) {
+				save_image(path);
+			}
+			break;
+		case ICON_BRUSH:
+		case ICON_LINE:
+		case ICON_RECT:
+		case ICON_FILLRECT:
+		case ICON_FLOOD:
+		case ICON_PICK:
+			tool = tb_buttons[i].tool;
+			break;
+		}
+	}
 }
 
 static int substr_len(const char *str)
@@ -253,8 +312,6 @@ static struct dir_entry *load_dir(const char *dirname, const char *filter, int *
 	return entries;
 }
 
-#define FONT_SZ		8
-#define ICON_SZ		8
 #define FRM_X		2
 #define FRM_Y		12
 #define FRM_IN_X	(FRM_X + 1)
@@ -302,7 +359,7 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 			}
 			gmoveto(coloffs[column], ypos);
 			ypos += FONT_SZ;
-			if(cursel == i) {
+			if(cursel == i && !txcur) {
 				gcolor(0, 3);
 			} else {
 				gcolor(0, UICOL_MAIN);
@@ -341,18 +398,22 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 
 				case '\n':
 				case '\r':
-					if(entries[cursel].dir) {
-						if(chdir(entries[cursel].name) == 0) {
-							free(entries);
-							if(!(entries = load_dir(".", filter, &num_entries))) {
-								return -1;
-							}
-							cursel = 0;
-						}
-					} else {
+					if(txcur) {
+						strcpy(pathbuf, txfield);
+						free(entries);
+						return 0;
+					}
+					if(!entries[cursel].dir) {
 						strcpy(pathbuf, entries[cursel].name);
 						free(entries);
 						return 0;
+					}
+					if(chdir(entries[cursel].name) == 0) {
+						free(entries);
+						if(!(entries = load_dir(".", filter, &num_entries))) {
+							return -1;
+						}
+						cursel = 0;
 					}
 					break;
 

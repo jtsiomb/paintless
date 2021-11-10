@@ -12,6 +12,10 @@ enum {
 };
 
 extern unsigned char *framebuf;
+extern unsigned char img[];
 extern int tool;
+
+int load_image(const char *fname);
+int save_image(const char *fname);
 
 #endif	/* APP_H_ */

@@ -30,9 +30,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #define MAX_TOOL_RAD	32
 
-int load_image(const char *fname);
-int save_image(const char *fname);
-
 int mx, my;
 int startx = -1, starty;
 unsigned char img[64000];
@@ -95,7 +92,9 @@ int main(void)
 
 			case 's':
 			case 'S':
-				save_image("lines.ppm");
+				if(file_dialog(FDLG_SAVE, 0, "*.ppm", path, sizeof path) != -1) {
+					save_image(path);
+				}
 				break;
 
 			case 'l':
@@ -114,54 +113,59 @@ int main(void)
 
 		memcpy(framebuf, img, 64000);
 
-		if(mbn & MOUSE_LEFT) {
-			if(startx == -1) {
-				startx = mx;
-				starty = my;
-			}
-			switch(tool) {
-			case TOOL_BRUSH:
-				draw_brush(img, mx, my, tool_sz, cur_col, OP_WR);
-				break;
-			case TOOL_LINE:
-				draw_line(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
-				break;
-			case TOOL_RECT:
-				draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
-				break;
-			case TOOL_FILLRECT:
-				draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR | OP_FILL);
-				break;
-			case TOOL_FLOOD:
-				if(mbn_delta & MOUSE_LEFT) {
-					floodfill(img, mx, my, cur_col);
-				}
-				break;
-			case TOOL_PICK:
-				if(mbn_delta & MOUSE_LEFT) {
-					cur_col = img[(my << 8) + (my << 6) + mx];
-				}
-				break;
-			}
+		if((mbn_delta & MOUSE_LEFT) && show_ui > 1 && my < TBAR_HEIGHT) {
+			uibutton(mbn & MOUSE_LEFT, mx, my);
 		} else {
-			if(startx >= 0) {
+
+			if(mbn & MOUSE_LEFT) {
+				if(startx == -1) {
+					startx = mx;
+					starty = my;
+				}
 				switch(tool) {
+				case TOOL_BRUSH:
+					draw_brush(img, mx, my, tool_sz, cur_col, OP_WR);
+					break;
 				case TOOL_LINE:
-					draw_line(img, startx, starty, mx, my, cur_col, OP_WR);
+					draw_line(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
 					break;
 				case TOOL_RECT:
-					draw_rect(img, startx, starty, mx, my, cur_col, OP_WR);
+					draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
 					break;
 				case TOOL_FILLRECT:
-					draw_rect(img, startx, starty, mx, my, cur_col, OP_WR | OP_FILL);
+					draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR | OP_FILL);
+					break;
+				case TOOL_FLOOD:
+					if(mbn_delta & MOUSE_LEFT) {
+						floodfill(img, mx, my, cur_col);
+					}
+					break;
+				case TOOL_PICK:
+					if(mbn_delta & MOUSE_LEFT) {
+						cur_col = img[(my << 8) + (my << 6) + mx];
+					}
 					break;
 				}
-				startx = starty = -1;
+			} else {
+				if(startx >= 0) {
+					switch(tool) {
+					case TOOL_LINE:
+						draw_line(img, startx, starty, mx, my, cur_col, OP_WR);
+						break;
+					case TOOL_RECT:
+						draw_rect(img, startx, starty, mx, my, cur_col, OP_WR);
+						break;
+					case TOOL_FILLRECT:
+						draw_rect(img, startx, starty, mx, my, cur_col, OP_WR | OP_FILL);
+						break;
+					}
+					startx = starty = -1;
+				}
 			}
-		}
 
-		if(mbn & mbn_delta & MOUSE_RIGHT) {
-			cur_col = (cur_col + 1) & 0xf;
+			if(mbn & mbn_delta & MOUSE_RIGHT) {
+				cur_col = (cur_col + 1) & 0xf;
+			}
 		}
 
 		if(show_ui) {
@@ -171,11 +175,12 @@ int main(void)
 			draw_colorbox(cur_col);
 		}
 
-		if(tool != TOOL_BRUSH || (show_ui > 1 && my < TBAR_HEIGHT)) {
-			draw_cursor(mx, my, 0xf);
+		if(tool == TOOL_BRUSH && (show_ui < 2 || my > TBAR_HEIGHT)) {
+			draw_brush(framebuf, mx, my, tool_sz, cur_col, OP_WR);
 		} else {
-			draw_brush(framebuf, mx, my, tool_sz, 0xf, OP_XOR);
+			draw_brush(framebuf, mx, my, 1, 0xf, OP_XOR);
 		}
+		draw_cursor(mx, my, 0xf);
 
 		wait_vblank();
 		memcpy(vmem, framebuf, 64000);

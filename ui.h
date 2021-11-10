@@ -36,6 +36,8 @@ void gcolor(unsigned char fg, unsigned char bg);
 void gmoveto(int x, int y);
 void gprintf(unsigned char *fb, const char *fmt, ...);
 
+void uibutton(int st, int x, int y);
+
 int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf, int bufsz);
 
 #endif	/* UI_H_ */
