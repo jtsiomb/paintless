@@ -26,6 +26,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include "video.h"
 #include "ui.h"
 #include "gfx.h"
+#include "mouse.h"
 
 enum {
 	ICON_DIR = 1,
@@ -112,23 +113,23 @@ void draw_cursor(int x, int y, unsigned char col)
 	unsigned char *p = framebuf + (y << 8) + (y << 6) + x;
 	switch(x) {
 	default:
+	case 5: p[-5] ^= col;
 	case 4: p[-4] ^= col;
 	case 3: p[-3] ^= col;
 	case 2: p[-2] ^= col;
-	case 1: p[-1] ^= col;
 	case 0: break;
 	}
 	switch(x) {
 	default:
+	case 314: p[5] ^= col;
 	case 315: p[4] ^= col;
 	case 316: p[3] ^= col;
 	case 317: p[2] ^= col;
-	case 318: p[1] ^= col;
 	case 319: break;
 	}
 
-	p[320] ^= col; p[640] ^= col; p[960] ^= col; p[1280] ^= col;
-	p[-320] ^= col; p[-640] ^= col; p[-960] ^= col; p[-1280] ^= col;
+	p[1600] ^= col; p[640] ^= col; p[960] ^= col; p[1280] ^= col;
+	p[-1600] ^= col; p[-640] ^= col; p[-960] ^= col; p[-1280] ^= col;
 }
 
 static int cur_x, cur_y;
@@ -254,24 +255,29 @@ static struct dir_entry *load_dir(const char *dirname, const char *filter, int *
 
 #define FONT_SZ		8
 #define ICON_SZ		8
-#define FRM_X		4
+#define FRM_X		2
 #define FRM_Y		12
-#define FRM_IN_X	(FRM_X + 2)
-#define FRM_IN_Y	(FRM_Y + 2)
+#define FRM_IN_X	(FRM_X + 1)
+#define FRM_IN_Y	(FRM_Y + 1)
 #define NUMLINES	22
 #define FRM_IN_XSZ	(ICON_SZ + 12 * FONT_SZ)
 #define FRM_IN_YSZ	(NUMLINES * FONT_SZ)
-#define FRM_XSZ		(FRM_IN_XSZ + 4)
-#define FRM_YSZ		(FRM_IN_YSZ + 4)
-#define FRM2_X		(FRM_X * 2 + FRM_XSZ)
-#define FRM2_IN_X	(FRM2_X + 2)
+#define FRM_XSZ		(FRM_IN_XSZ + 2)
+#define FRM_YSZ		(FRM_IN_YSZ + 2)
+#define FRM2_X		(FRM_X * 2 + FRM_XSZ + 1)
+#define FRM2_IN_X	(FRM2_X + 1)
+#define TX_X		(FRM2_X + FRM_XSZ + 2)
+#define TX_Y		(FRM_Y + 10)
 
 int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf, int bufsz)
 {
 	static const int coloffs[] = {FRM_IN_X, FRM2_IN_X};
-	int i, c, num_entries, column, ypos;
+	int mx, my, mbn, mbnprev, mbndelta;
+	int i, c, num_entries, column, ypos, textcol;
 	struct dir_entry *entries;
 	int extkey = 0, cursel = 0;
+	char txfield[16] = {0};
+	int txcur = 0;
 
 
 	if(!(entries = load_dir(dirname, filter, &num_entries))) {
@@ -280,12 +286,12 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 
 	for(;;) {
 		memset(framebuf, UICOL_MAIN, 64000);
-		gmoveto(0, 0);
-		gcolor(4, UICOL_MAIN);
+		gmoveto(1, 1);
+		gcolor(0, UICOL_MAIN);
 
 		draw_frame(framebuf, FRM_X, FRM_Y, FRM_X + FRM_XSZ, FRM_Y + FRM_YSZ, FRM_IN);
 		draw_frame(framebuf, FRM2_X, FRM_Y, FRM2_X + FRM_XSZ, FRM_Y + FRM_YSZ, FRM_IN);
-		gprintf(framebuf, "File selection dialog");
+		gprintf(framebuf, type == FDLG_SAVE ? "Save file ..." : "Open file ...");
 
 		column = -1;
 		for(i=0; i<num_entries; i++) {
@@ -308,57 +314,86 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 			}
 		}
 
+		draw_text(framebuf, TX_X, TX_Y - 10, "Filename:", 0, UICOL_MAIN);
+		draw_frame(framebuf, TX_X, TX_Y, TX_X + 2 + 8 * 12, TX_Y + 9, FRM_IN);
+		if(!entries[cursel].dir || txcur) {
+			gcolor(0, UICOL_MAIN);
+			gmoveto(TX_X + 1, TX_Y + 1);
+			gprintf(framebuf, "%-12s", txcur ? txfield : entries[cursel].name);
+		}
+
+		mbn = read_mouse(&mx, &my);
+		mx >>= 1;
+		mbndelta = mbn ^ mbnprev;
+		mbnprev = mbn;
+
+		draw_cursor(mx, my, 0xff);
+
 		wait_vblank();
 		memcpy((void*)0xa0000, framebuf, 64000);
 
-		c = getch();
-		if(!extkey) {
-			switch(c) {
-			case 27:
-				goto end;
+		if(kbhit()) {
+			c = getch();
+			if(!extkey) {
+				switch(c) {
+				case 27:
+					goto end;
 
-			case '\n':
-			case '\r':
-				if(entries[cursel].dir) {
-					if(chdir(entries[cursel].name) == 0) {
-						free(entries);
-						if(!(entries = load_dir(".", filter, &num_entries))) {
-							return -1;
+				case '\n':
+				case '\r':
+					if(entries[cursel].dir) {
+						if(chdir(entries[cursel].name) == 0) {
+							free(entries);
+							if(!(entries = load_dir(".", filter, &num_entries))) {
+								return -1;
+							}
+							cursel = 0;
 						}
-						cursel = 0;
+					} else {
+						strcpy(pathbuf, entries[cursel].name);
+						free(entries);
+						return 0;
 					}
-				} else {
-					strcpy(pathbuf, entries[cursel].name);
-					free(entries);
-					return 0;
-				}
-				break;
+					break;
 
-			case 0:
-				extkey = 1;
-				break;
-			}
-		} else {
-			extkey = 0;
-			switch(c) {
-			case 'H':	/* up arrow */
-				if(cursel > 0) cursel--;
-				break;
-			case 'K':	/* left arrow */
-				cursel -= NUMLINES;
-				if(cursel < 0) cursel = 0;
-				break;
-			case 'P':	/* down arrow */
-				if(cursel < num_entries - 1) {
-					cursel++;
+				case 0:
+					extkey = 1;
+					break;
+
+				case '\b':
+					if(txcur) {
+						txfield[--txcur] = 0;
+					}
+					break;
+
+				default:
+					if(type == FDLG_SAVE && (isalnum(c) || c == '.') && txcur < 12) {
+						txfield[txcur++] = c;
+						txfield[txcur] = 0;
+					}
 				}
-				break;
-			case 'M':	/* right arrow */
-				cursel += NUMLINES;
-				if(cursel >= num_entries) {
-					cursel = num_entries - 1;
+			} else {
+				extkey = 0;
+				switch(c) {
+				case 'H':	/* up arrow */
+					if(cursel > 0) cursel--;
+					break;
+				case 'K':	/* left arrow */
+					cursel -= NUMLINES;
+					if(cursel < 0) cursel = 0;
+					break;
+				case 'P':	/* down arrow */
+					if(cursel < num_entries - 1) {
+						cursel++;
+					}
+					break;
+				case 'M':	/* right arrow */
+					cursel += NUMLINES;
+					if(cursel >= num_entries) {
+						cursel = num_entries - 1;
+					}
+					break;
 				}
-				break;
 			}
 		}
 	}
