@@ -438,21 +438,25 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 				switch(c) {
 				case 'H':	/* up arrow */
 					if(cursel > 0) cursel--;
+					txcur = 0;
 					break;
 				case 'K':	/* left arrow */
 					cursel -= NUMLINES;
 					if(cursel < 0) cursel = 0;
+					txcur = 0;
 					break;
 				case 'P':	/* down arrow */
 					if(cursel < num_entries - 1) {
 						cursel++;
 					}
+					txcur = 0;
 					break;
 				case 'M':	/* right arrow */
 					cursel += NUMLINES;
 					if(cursel >= num_entries) {
 						cursel = num_entries - 1;
 					}
+					txcur = 0;
 					break;
 				}
 			}
