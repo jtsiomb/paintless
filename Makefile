@@ -6,7 +6,8 @@ LD = wlink
 CFLAGS = -d3 -s -zq -bt=dos
 
 $(bin): $(obj)
-	$(LD) debug all name $@ system dos4g file { $(obj) } $(LDFLAGS)
+	%write objects.lnk $(obj)
+	$(LD) debug all name $@ system dos4g file { @objects } $(LDFLAGS)
 
 .c.obj:
 	$(CC) -fo=$@ $(CFLAGS) $<
