@@ -1,5 +1,5 @@
-obj = lines.obj video.obj gfx.obj ui.obj mouse.obj font8x8.obj
-bin = lines.exe
+obj = app.obj video.obj gfx.obj ui.obj mouse.obj font8x8.obj
+bin = pntless.exe
 
 CC = wcc386
 LD = wlink

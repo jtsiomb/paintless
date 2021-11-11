@@ -1,4 +1,11 @@
-Simple PC paint program for DOS
+Paintless
+=========
+A pointless VGA paint program for DOS.
+
+![shots](http://nuclear.mutantstargoat.com/sw/misc/pntless_shots.png)
+
+I didn't mean to write a paint program. I was just hacking aimlessly, one thing
+led to another, and a paint program appeared.
 
 License
 -------
@@ -22,9 +29,12 @@ Keyboard controls:
  - 1: brush tool
  - 2: line tool
  - 3: rectangle tool
- - F: toggle between fill/outline for closed shape tools
+ - 4: filled rectangle tool
+ - 5: flood fill tool
+ - 6: color picker tool
+ - [ / ]: increase/decrease brush size.
  - Tab: toggle UI
  - Backspace: clear canvas
- - L: load image from file `lines.ppm`
- - S: save image to file `lines.ppm`
+ - L: load image from file
+ - S: save image to file
  - Esc: exit program
