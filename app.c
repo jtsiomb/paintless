@@ -32,7 +32,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 int mx, my;
 int startx = -1, starty;
-unsigned char img[64000];
+unsigned char imgbuf[2][64000];
+unsigned char *img = imgbuf[0];
+unsigned char *undobuf = imgbuf[1];
+int curimg;
 unsigned char *vmem = (unsigned char*)0xa0000;
 unsigned char backbuf[64000 + 320 * 16];
 unsigned char *framebuf = backbuf + 320 * 8;
@@ -41,6 +44,8 @@ int tool, tool_sz = 1;
 int show_ui = 2;
 int fill;
 char cwd[256];
+
+void save_undo(void);
 
 int main(void)
 {
@@ -83,11 +88,18 @@ int main(void)
 				break;
 
 			case '\b':
+				save_undo();
 				memset(img, 0, 64000);
 				break;
 
 			case '\t':
 				show_ui = (show_ui + 1) % 3;
+				break;
+
+			case 'u':
+			case 'U':
+				undobuf = imgbuf[curimg];
+				img = imgbuf[++curimg & 1];
 				break;
 
 			case 's':
@@ -124,6 +136,9 @@ int main(void)
 				}
 				switch(tool) {
 				case TOOL_BRUSH:
+					if(mbn_delta & MOUSE_LEFT) {
+						save_undo();
+					}
 					draw_brush(img, mx, my, tool_sz, cur_col, OP_WR);
 					break;
 				case TOOL_LINE:
@@ -137,6 +152,7 @@ int main(void)
 					break;
 				case TOOL_FLOOD:
 					if(mbn_delta & MOUSE_LEFT) {
+						save_undo();
 						floodfill(img, mx, my, cur_col);
 					}
 					break;
@@ -150,12 +166,15 @@ int main(void)
 				if(startx >= 0) {
 					switch(tool) {
 					case TOOL_LINE:
+						save_undo();
 						draw_line(img, startx, starty, mx, my, cur_col, OP_WR);
 						break;
 					case TOOL_RECT:
+						save_undo();
 						draw_rect(img, startx, starty, mx, my, cur_col, OP_WR);
 						break;
 					case TOOL_FILLRECT:
+						save_undo();
 						draw_rect(img, startx, starty, mx, my, cur_col, OP_WR | OP_FILL);
 						break;
 					}
@@ -297,4 +316,9 @@ int save_image(const char *fname)
 	}
 	fclose(fp);
 	return 0;
+}
+
+void save_undo(void)
+{
+	memcpy(undobuf, img, 64000);
 }
