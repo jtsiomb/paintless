@@ -35,6 +35,7 @@ Keyboard controls:
  - [ / ]: increase/decrease brush size.
  - Tab: toggle UI
  - Backspace: clear canvas
+ - U: undo
  - L: load image from file
  - S: save image to file
  - Esc: exit program

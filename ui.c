@@ -330,7 +330,7 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 {
 	static const int coloffs[] = {FRM_IN_X, FRM2_IN_X};
 	int mx, my, mbn, mbnprev, mbndelta;
-	int i, c, num_entries, column, ypos, textcol;
+	int i, c, num_entries, column, ypos, textcol, msel;
 	struct dir_entry *entries;
 	int extkey = 0, cursel = 0;
 	char txfield[16] = {0};
@@ -383,6 +383,21 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 		mx >>= 1;
 		mbndelta = mbn ^ mbnprev;
 		mbnprev = mbn;
+
+		if(mbn & mbndelta & MOUSE_LEFT) {
+			if(my > FRM_IN_Y && my < FRM_IN_Y + FRM_IN_YSZ) {
+				msel = -1;
+				if(mx >= FRM_IN_X && mx < FRM_IN_X + FRM_IN_XSZ) {
+					msel = (my - FRM_IN_Y) / FONT_SZ;
+				} else if(mx >= FRM2_IN_X && mx < FRM2_IN_X + FRM_IN_XSZ) {
+					msel = (my - FRM_IN_Y) / FONT_SZ + NUMLINES;
+				}
+				if(msel >= 0 || msel < num_entries) {
+					cursel = msel;
+				}
+			}
+		}
+
 
 		draw_cursor(mx, my, 0xff);
 

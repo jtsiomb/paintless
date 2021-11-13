@@ -125,8 +125,10 @@ int main(void)
 
 		memcpy(framebuf, img, 64000);
 
-		if((mbn_delta & MOUSE_LEFT) && show_ui > 1 && my < TBAR_HEIGHT) {
-			uibutton(mbn & MOUSE_LEFT, mx, my);
+		if(show_ui > 1 && my < TBAR_HEIGHT) {
+			if(mbn_delta & MOUSE_LEFT) {
+				uibutton(mbn & MOUSE_LEFT, mx, my);
+			}
 		} else {
 
 			if(mbn & MOUSE_LEFT) {
