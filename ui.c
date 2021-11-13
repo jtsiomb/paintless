@@ -20,13 +20,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
+#ifdef MSDOS
 #include <conio.h>
 #include <direct.h>
-#include "app.h"
 #include "video.h"
+#include "mouse.h"
+#else
+#include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#endif
+#include "app.h"
 #include "ui.h"
 #include "gfx.h"
-#include "mouse.h"
 
 #define FONT_SZ		8
 #define ICON_SZ		8
@@ -247,13 +253,6 @@ void uibutton(int st, int x, int y)
 	}
 }
 
-static int substr_len(const char *str)
-{
-	const char *s = str;
-	while(*s && *s != '*' && *s != '?') s++;
-	return s - str;
-}
-
 static int match_suffix(const char *name, const char *suffix)
 {
 	int len, slen;
@@ -279,7 +278,7 @@ struct dir_entry {
 
 static struct dir_entry *load_dir(const char *dirname, const char *filter, int *numret)
 {
-	int i, num = 0;
+	int num = 0;
 	DIR *dir;
 	struct dirent *dent;
 	struct dir_entry *entries;
@@ -300,11 +299,23 @@ static struct dir_entry *load_dir(const char *dirname, const char *filter, int *
 
 	while((dent = readdir(dir))) {
 		if(strcmp(dent->d_name, ".") == 0) continue;
+#ifdef MSDOS
 		if(dent->d_attr == _A_SUBDIR || match_suffix(dent->d_name, filter)) {
 			strcpy(entries[num].name, dent->d_name);
 			entries[num].dir = dent->d_attr == _A_SUBDIR;
 			num++;
 		}
+#else
+		{
+			struct stat st;
+			if(stat(dent->d_name, &st) == -1) continue;
+			if((st.st_mode & S_IFDIR) || match_suffix(dent->d_name, filter)) {
+				strcpy(entries[num].name, dent->d_name);
+				entries[num].dir = st.st_mode & S_IFDIR;
+				num++;
+			}
+		}
+#endif
 	}
 	closedir(dir);
 
@@ -330,7 +341,7 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 {
 	static const int coloffs[] = {FRM_IN_X, FRM2_IN_X};
 	int mx, my, mbn, mbnprev, mbndelta;
-	int i, c, num_entries, column, ypos, textcol, msel;
+	int i, c, num_entries, column, ypos, msel;
 	struct dir_entry *entries;
 	int extkey = 0, cursel = 0;
 	char txfield[16] = {0};
@@ -379,6 +390,7 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 			gprintf(framebuf, "%-12s", txcur ? txfield : entries[cursel].name);
 		}
 
+#ifdef MSDOS
 		mbn = read_mouse(&mx, &my);
 		mx >>= 1;
 		mbndelta = mbn ^ mbnprev;
@@ -406,6 +418,10 @@ int file_dialog(int type, const char *dirname, const char *filter, char *pathbuf
 
 		if(kbhit()) {
 			c = getch();
+#else
+		if(1) {
+			c = 27;	/* TODO */
+#endif
 			if(!extkey) {
 				switch(c) {
 				case 27:

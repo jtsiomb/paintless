@@ -31,11 +31,11 @@ PUSHA_EDX_OFFS equ 16
 	section .text
 	bits 32
 
-; int have_mouse(void)
-	global have_mouse_
-	global _have_mouse
-have_mouse_:
-_have_mouse:
+; int reset_mouse(void)
+	global reset_mouse_
+	global _reset_mouse
+reset_mouse_:
+_reset_mouse:
 	pusha
 	mov ax, QUERY
 	int 0x33

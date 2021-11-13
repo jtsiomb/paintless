@@ -19,11 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <conio.h>
-#include <dos.h>
-#include <direct.h>
 #include "app.h"
-#include "video.h"
 #include "mouse.h"
 #include "gfx.h"
 #include "ui.h"
@@ -36,182 +32,167 @@ unsigned char imgbuf[2][64000];
 unsigned char *img = imgbuf[0];
 unsigned char *undobuf = imgbuf[1];
 int curimg;
-unsigned char *vmem = (unsigned char*)0xa0000;
 unsigned char backbuf[64000 + 320 * 16];
 unsigned char *framebuf = backbuf + 320 * 8;
 unsigned char cur_col = 0xf;
 int tool, tool_sz = 1;
 int show_ui = 2;
 int fill;
-char cwd[256];
 
 void save_undo(void);
 
-int main(void)
+
+
+void app_begin_frame(void)
 {
-	int c, mbn, mbn_prev = 0, mbn_delta;
+	memcpy(framebuf, img, 64000);
+}
+
+void app_end_frame(void)
+{
+	if(startx != -1) {	/* dragging */
+		switch(tool) {
+		case TOOL_BRUSH:
+			draw_brush(img, mx, my, tool_sz, cur_col, OP_WR);
+			break;
+		case TOOL_LINE:
+			draw_line(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
+			break;
+		case TOOL_RECT:
+			draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
+			break;
+		case TOOL_FILLRECT:
+			draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR | OP_FILL);
+			break;
+		}
+	}
+
+	if(show_ui) {
+		if(show_ui >= 2) {
+			draw_toolbar();
+		}
+		draw_colorbox(cur_col);
+	}
+
+	if(tool == TOOL_BRUSH && (show_ui < 2 || my > TBAR_HEIGHT)) {
+		draw_brush(framebuf, mx, my, tool_sz, cur_col, OP_WR);
+	} else {
+		draw_brush(framebuf, mx, my, 1, 0xf, OP_XOR);
+	}
+	draw_cursor(mx, my, 0xf);
+}
+
+void app_keypress(int key)
+{
 	char path[256];
 
-	getcwd(cwd, sizeof cwd);
+	switch(key) {
+	case 27:
+		app_quit();
+		break;
 
-	set_video_mode(0x13);
-	if(!have_mouse()) {
-		set_video_mode(3);
-		printf("Mouse driver not detected\n");
-		return 1;
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+		tool = key - '1';
+		break;
+
+	case ']':
+		if(tool_sz < MAX_TOOL_RAD) tool_sz++;
+		break;
+	case '[':
+		if(tool_sz > 1) tool_sz--;
+		break;
+
+	case '\b':
+		save_undo();
+		memset(img, 0, 64000);
+		break;
+
+	case '\t':
+		show_ui = (show_ui + 1) % 3;
+		break;
+
+	case 'u':
+	case 'U':
+		undobuf = imgbuf[curimg];
+		img = imgbuf[++curimg & 1];
+		break;
+
+	case 's':
+	case 'S':
+		if(file_dialog(FDLG_SAVE, 0, "*.ppm", path, sizeof path) != -1) {
+			save_image(path);
+		}
+		break;
+
+	case 'l':
+	case 'L':
+		if(file_dialog(FDLG_OPEN, 0, "*.ppm", path, sizeof path) != -1) {
+			load_image(path);
+		}
+		break;
 	}
-	set_mouse_xrange(0, 638);
-	set_mouse_yrange(0, 199);
-
-	for(;;) {
-		if(kbhit()) {
-			c = getch();
-			switch(c) {
-			case 27:
-				goto end;
-
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '7':
-				tool = c - '1';
-				break;
-
-			case ']':
-				if(tool_sz < MAX_TOOL_RAD) tool_sz++;
-				break;
-			case '[':
-				if(tool_sz > 1) tool_sz--;
-				break;
-
-			case '\b':
-				save_undo();
-				memset(img, 0, 64000);
-				break;
-
-			case '\t':
-				show_ui = (show_ui + 1) % 3;
-				break;
-
-			case 'u':
-			case 'U':
-				undobuf = imgbuf[curimg];
-				img = imgbuf[++curimg & 1];
-				break;
-
-			case 's':
-			case 'S':
-				if(file_dialog(FDLG_SAVE, 0, "*.ppm", path, sizeof path) != -1) {
-					save_image(path);
-				}
-				break;
-
-			case 'l':
-			case 'L':
-				if(file_dialog(FDLG_OPEN, 0, "*.ppm", path, sizeof path) != -1) {
-					load_image(path);
-				}
-				break;
-			}
-		}
-
-		mbn = read_mouse(&mx, &my);
-		mbn_delta = mbn ^ mbn_prev;
-		mbn_prev = mbn;
-		mx >>= 1;
-
-		memcpy(framebuf, img, 64000);
-
-		if(show_ui > 1 && my < TBAR_HEIGHT) {
-			if(mbn_delta & MOUSE_LEFT) {
-				uibutton(mbn & MOUSE_LEFT, mx, my);
-			}
-		} else {
-
-			if(mbn & MOUSE_LEFT) {
-				if(startx == -1) {
-					startx = mx;
-					starty = my;
-				}
-				switch(tool) {
-				case TOOL_BRUSH:
-					if(mbn_delta & MOUSE_LEFT) {
-						save_undo();
-					}
-					draw_brush(img, mx, my, tool_sz, cur_col, OP_WR);
-					break;
-				case TOOL_LINE:
-					draw_line(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
-					break;
-				case TOOL_RECT:
-					draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR);
-					break;
-				case TOOL_FILLRECT:
-					draw_rect(framebuf, startx, starty, mx, my, 0xf, OP_XOR | OP_FILL);
-					break;
-				case TOOL_FLOOD:
-					if(mbn_delta & MOUSE_LEFT) {
-						save_undo();
-						floodfill(img, mx, my, cur_col);
-					}
-					break;
-				case TOOL_PICK:
-					if(mbn_delta & MOUSE_LEFT) {
-						cur_col = img[(my << 8) + (my << 6) + mx];
-					}
-					break;
-				}
-			} else {
-				if(startx >= 0) {
-					switch(tool) {
-					case TOOL_LINE:
-						save_undo();
-						draw_line(img, startx, starty, mx, my, cur_col, OP_WR);
-						break;
-					case TOOL_RECT:
-						save_undo();
-						draw_rect(img, startx, starty, mx, my, cur_col, OP_WR);
-						break;
-					case TOOL_FILLRECT:
-						save_undo();
-						draw_rect(img, startx, starty, mx, my, cur_col, OP_WR | OP_FILL);
-						break;
-					}
-					startx = starty = -1;
-				}
-			}
-
-			if(mbn & mbn_delta & MOUSE_RIGHT) {
-				cur_col = (cur_col + 1) & 0xf;
-			}
-		}
-
-		if(show_ui) {
-			if(show_ui >= 2) {
-				draw_toolbar();
-			}
-			draw_colorbox(cur_col);
-		}
-
-		if(tool == TOOL_BRUSH && (show_ui < 2 || my > TBAR_HEIGHT)) {
-			draw_brush(framebuf, mx, my, tool_sz, cur_col, OP_WR);
-		} else {
-			draw_brush(framebuf, mx, my, 1, 0xf, OP_XOR);
-		}
-		draw_cursor(mx, my, 0xf);
-
-		wait_vblank();
-		memcpy(vmem, framebuf, 64000);
-	}
-end:
-
-	set_video_mode(3);
-	chdir(cwd);
-	return 0;
 }
+
+void app_mouse_button(int bn, int st)
+{
+	if(show_ui > 1 && my < TBAR_HEIGHT) {
+		if(bn == MOUSE_LEFT) {
+			uibutton(st ? MOUSE_LEFT : 0, mx, my);
+		}
+		return;
+	}
+
+	if(st) {
+		if(bn == MOUSE_LEFT) {
+			if(startx == -1) {
+				startx = mx;
+				starty = my;
+			}
+
+			switch(tool) {
+			case TOOL_BRUSH:
+				save_undo();
+				break;
+			case TOOL_FLOOD:
+				save_undo();
+				floodfill(img, mx, my, cur_col);
+				break;
+			case TOOL_PICK:
+				cur_col = img[(my << 8) + (my << 6) + mx];
+				break;
+			}
+
+		} else if(bn == MOUSE_RIGHT) {
+			cur_col = (cur_col + 1) & 0xf;
+		}
+
+	} else {	/* release */
+		if(startx >= 0) {
+			switch(tool) {
+			case TOOL_LINE:
+				save_undo();
+				draw_line(img, startx, starty, mx, my, cur_col, OP_WR);
+				break;
+			case TOOL_RECT:
+				save_undo();
+				draw_rect(img, startx, starty, mx, my, cur_col, OP_WR);
+				break;
+			case TOOL_FILLRECT:
+				save_undo();
+				draw_rect(img, startx, starty, mx, my, cur_col, OP_WR | OP_FILL);
+				break;
+			}
+			startx = starty = -1;
+		}
+	}
+}
+
 
 static unsigned char colors[][3] = {
 	{0, 0, 0},				/*  0: black */

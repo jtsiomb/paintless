@@ -1,4 +1,4 @@
-obj = app.obj video.obj gfx.obj ui.obj mouse.obj font8x8.obj
+obj = main.obj app.obj video.obj gfx.obj ui.obj mouse.obj font8x8.obj
 bin = pntless.exe
 
 CC = wcc386

@@ -182,7 +182,7 @@ static int fftop;
 #define FFPUSH(x, y) \
 	do { \
 		if(fftop < FFSTACK_SIZE) { \
-			ffstack[fftop++] = (x & 0xffff) | (y << 16); \
+			ffstack[fftop++] = ((x) & 0xffff) | ((y) << 16); \
 		} \
 	} while(0)
 

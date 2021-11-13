@@ -28,7 +28,7 @@ enum {
 extern "C" {
 #endif
 
-int have_mouse(void);
+int reset_mouse(void);
 void show_mouse(int show);
 int read_mouse(int *xp, int *yp);
 void set_mouse(int x, int y);
