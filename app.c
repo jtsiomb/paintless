@@ -119,7 +119,7 @@ void app_keypress(int key)
 
 	case 'u':
 	case 'U':
-		undobuf = imgbuf[curimg];
+		undobuf = imgbuf[curimg & 1];
 		img = imgbuf[++curimg & 1];
 		break;
 
