@@ -89,6 +89,7 @@ int main(int argc, char **argv)
 	} else if((glx_swap_interval_sgi = (void (*)(int))glXGetProcAddress("glXSwapIntervalSGI"))) {
 		glx_swap_interval_sgi(1);
 	}
+	glutSetCursor(GLUT_CURSOR_NONE);
 
 	glutMainLoop();
 	return 0;
