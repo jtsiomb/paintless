@@ -19,6 +19,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <string.h>
 #include "gfx.h"
 
+#define USE_BRESEHNAM
+
 void draw_brush(unsigned char *fb, int x, int y, int sz, unsigned char col, int op)
 {
 	int i, j, rad;
@@ -46,6 +48,65 @@ void draw_brush(unsigned char *fb, int x, int y, int sz, unsigned char col, int 
 	}
 }
 
+#ifdef USE_BRESENHAM
+void draw_line(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char col, int op)
+{
+	int i, dx, dy, dx2, dy2, xinc, yinc, err;
+
+	fb += (y0 << 8) + (y0 << 6) + x0;
+	dx = x1 - x0;
+	dy = y1 - y0;
+
+	if(dx >= 0) {
+		xinc = 1;
+	} else {
+		xinc = -1;
+		dx = -dx;
+	}
+	if(dy >= 0) {
+		yinc = 320;
+	} else {
+		yinc = -320;
+		dy = -dy;
+	}
+	dx2 = dx << 1;
+	dy2 = dy << 1;
+
+	if(dx > dy) {
+		/* x-major */
+		err = dy2 - dx;
+		for(i=0; i<=dx; i++) {
+			if(op == OP_XOR) {
+				*fb ^= col;
+			} else {
+				*fb = col;
+			}
+			if(err >= 0) {
+				err -= dx2;
+				fb += yinc;
+			}
+			err += dy2;
+			fb += xinc;
+		}
+	} else {
+		/* y-major */
+		err = dx2 - dy;
+		for(i=0; i<=dy; i++) {
+			if(op == OP_XOR) {
+				*fb ^= col;
+			} else {
+				*fb = col;
+			}
+			if(err >= 0) {
+				err -= dy2;
+				fb += xinc;
+			}
+			err += dx2;
+			fb += yinc;
+		}
+	}
+}
+#else
 void draw_line(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char col, int op)
 {
 	long x, y, dx, dy, slope, step;
@@ -85,7 +146,7 @@ void draw_line(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char 
 				fb[(y0 << 8) + (y0 << 6) + x0] = col;
 			}
 		} while(x >> 8 != x1);
-			
+
 	} else {
 		/* y-major */
 		slope = dy ? (dx << 8) / dy : 0;
@@ -109,6 +170,7 @@ void draw_line(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char 
 		} while(y >> 8 != y1);
 	}
 }
+#endif
 
 #define SWAP(a, b)	do { int tmp = a; a = b; b = tmp; } while(0)
 void draw_rect(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char col, int op)
