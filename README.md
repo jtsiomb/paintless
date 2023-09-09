@@ -9,7 +9,7 @@ led to another, and a paint program appeared.
 
 License
 -------
-Copyright (C) 2021 John Tsiombikas <nuclear@member.fsf.org>
+Copyright (C) 2021-2023 John Tsiombikas <nuclear@mutantstargoat.com>
 
 This program is free software. Feel free to use, modify, and/or redistribute it
 under the terms of the GNU General Public License v3, or at your option any
