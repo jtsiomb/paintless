@@ -1,6 +1,6 @@
 /*
 Simple paint program for DOS
-Copyright (C) 2021 John Tsiombikas <nuclear@member.fsf.org>
+Copyright (C) 2021-2023 John Tsiombikas <nuclear@member.fsf.org>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,8 +18,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #include <stdlib.h>
 #include <string.h>
 #include "gfx.h"
-
-#define USE_BRESEHNAM
 
 void draw_brush(unsigned char *fb, int x, int y, int sz, unsigned char col, int op)
 {
@@ -48,7 +46,6 @@ void draw_brush(unsigned char *fb, int x, int y, int sz, unsigned char col, int 
 	}
 }
 
-#ifdef USE_BRESENHAM
 void draw_line(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char col, int op)
 {
 	int i, dx, dy, dx2, dy2, xinc, yinc, err;
@@ -106,71 +103,6 @@ void draw_line(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char 
 		}
 	}
 }
-#else
-void draw_line(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char col, int op)
-{
-	long x, y, dx, dy, slope, step;
-
-	x = x0 << 8;
-	y = y0 << 8;
-	dx = (x1 - x0) << 8;
-	dy = (y1 - y0) << 8;
-
-	if(!(dx | dy)) return;
-
-	op &= OP_MASK;
-	if(op == OP_XOR) {
-		fb[(y0 << 8) + (y0 << 6) + x0] ^= col;
-	} else {
-		fb[(y0 << 8) + (y0 << 6) + x0] = col;
-	}
-
-	if(abs(dx) > abs(dy)) {
-		/* x-major */
-		slope = dx ? (dy << 8) / dx : 0;
-		if(dx >= 0) {
-			step = 1;
-		} else {
-			step = -1;
-			slope = -slope;
-		}
-
-		do {
-			x += step << 8;
-			y += slope;
-			x0 = x >> 8;
-			y0 = y >> 8;
-			if(op == OP_XOR) {
-				fb[(y0 << 8) + (y0 << 6) + x0] ^= col;
-			} else {
-				fb[(y0 << 8) + (y0 << 6) + x0] = col;
-			}
-		} while(x >> 8 != x1);
-
-	} else {
-		/* y-major */
-		slope = dy ? (dx << 8) / dy : 0;
-		if(dy >= 0) {
-			step = 1;
-		} else {
-			step = -1;
-			slope = -slope;
-		}
-
-		do {
-			x += slope;
-			y += step << 8;
-			x0 = x >> 8;
-			y0 = y >> 8;
-			if(op == OP_XOR) {
-				fb[(y0 << 8) + (y0 << 6) + x0] ^= col;
-			} else {
-				fb[(y0 << 8) + (y0 << 6) + x0] = col;
-			}
-		} while(y >> 8 != y1);
-	}
-}
-#endif
 
 #define SWAP(a, b)	do { int tmp = a; a = b; b = tmp; } while(0)
 void draw_rect(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char col, int op)
@@ -184,7 +116,7 @@ void draw_rect(unsigned char *fb, int x0, int y0, int x1, int y1, unsigned char 
 	dy = y1 - y0;
 
 	if(!(dx | dy)) return;
-	
+
 	dx++;
 	dy++;
 	fb += (y0 << 8) + (y0 << 6) + x0;

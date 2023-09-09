@@ -1,9 +1,28 @@
+/*
+Simple paint program for DOS
+Copyright (C) 2021 John Tsiombikas <nuclear@member.fsf.org>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <GL/freeglut.h>
+#if defined(unix) || defined(__unix__)
 #include <GL/glx.h>
 #include <X11/Xlib.h>
+#endif
 #include "app.h"
 #include "mouse.h"
 
@@ -49,9 +68,11 @@ static uint32_t palette[256] = {
 	0xffffff	/* 15: white */
 };
 
+#if defined(unix) || defined(__unix__)
 static void (*glx_swap_interval_ext)(Display*, Window, int);
 static void (*glx_swap_interval_mesa)(int);
 static void (*glx_swap_interval_sgi)(int);
+#endif
 
 
 int main(int argc, char **argv)
@@ -78,6 +99,7 @@ int main(int argc, char **argv)
 	glLoadIdentity();
 	glScalef((float)WIDTH / tex_xsz, (float)HEIGHT / tex_ysz, 1);
 
+#if defined(unix) || defined(__unix__)
 	if((glx_swap_interval_ext = (void (*)(Display*, Window, int))glXGetProcAddress("glXSwapIntervalEXT"))) {
 		Display *dpy = glXGetCurrentDisplay();
 		Window win = glXGetCurrentDrawable();
@@ -89,6 +111,7 @@ int main(int argc, char **argv)
 	} else if((glx_swap_interval_sgi = (void (*)(int))glXGetProcAddress("glXSwapIntervalSGI"))) {
 		glx_swap_interval_sgi(1);
 	}
+#endif
 	glutSetCursor(GLUT_CURSOR_NONE);
 
 	glutMainLoop();
